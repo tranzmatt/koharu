@@ -627,6 +627,78 @@ Use `.khr` as a packed interchange format.
 
 This keeps working storage optimized for editing while still giving users a single-file format for sharing and backup.
 
+### Blob retention and garbage collection
+
+Blob garbage collection should be part of the design.
+
+Without GC, long-lived projects will accumulate unreachable blobs from:
+
+- replaced authored rasters
+- superseded masks
+- stale text sprite publications
+- stale inpainted outputs
+- stale rendered outputs
+- abandoned intermediate assets
+
+Koharu should therefore treat blob cleanup as a conservative maintenance step.
+
+#### Blob model
+
+Blobs are:
+
+- immutable
+- content-addressed by hash
+- referenced from authored state, snapshots, transactions, and publications
+
+#### Reachability roots
+
+A blob is retained if it is reachable from any retained root:
+
+- the current project head state
+- retained snapshots
+- retained transactions
+- retained publication records
+- retained thumbnails if they are stored as blobs
+
+#### GC strategy
+
+Use mark-and-sweep garbage collection:
+
+1. walk all retained roots
+2. collect reachable blob hashes
+3. delete any blob file not in the reachable set
+
+#### When GC runs
+
+GC must not run during interactive editing.
+
+Safe times:
+
+- explicit `Compact Project`
+- `.khr` export
+- `Save As`
+- optional clean shutdown maintenance if it is cheap enough
+
+#### History interaction
+
+GC must preserve blobs referenced by retained history.
+
+That means:
+
+- if undoable history is still retained, GC must keep the blobs needed by that history
+- if history is compacted, blobs only referenced by dropped history may then be collected
+
+#### User-facing behavior
+
+Users should experience GC as project compaction, not as destructive cleanup.
+
+Expected behavior:
+
+- compaction reduces project size
+- compaction does not remove current authored content
+- compaction does not break retained undo history
+- `.khr` export should produce a compact portable project without stale unreachable blobs
+
 ### Optional metadata index
 
 If startup or history lookup later proves too slow, Koharu may add a small metadata index for:
