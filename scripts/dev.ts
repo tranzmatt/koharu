@@ -23,6 +23,23 @@ async function checkNvcc() {
   }
 }
 
+/** Returns the CUDA version supported by the installed driver, e.g. "13.1" */
+async function detectCudaDriverVersion(): Promise<string | null> {
+  try {
+    const { stdout } = await exec('nvidia-smi', { env: process.env })
+    const match = stdout.match(/CUDA Version:\s*(\d+\.\d+)/)
+    return match ? match[1] : null
+  } catch {
+    return null
+  }
+}
+
+/** Converts "13.1" → "13010" as expected by CUDARC_CUDA_VERSION */
+function toCudarcVersion(cudaVersion: string): string {
+  const [major, minor] = cudaVersion.split('.')
+  return `${major}0${minor}0`
+}
+
 function sortVersionsDesc(versions: string[]) {
   return versions.sort((a, b) => {
     const verA = parseInt(a.replace('v', '').replace('.', ''))
@@ -109,6 +126,24 @@ async function dev() {
 
     // Setup cl.exe path
     await setupCl()
+  } else {
+    // On Linux/macOS, detect the driver's supported CUDA version and pin
+    // CUDARC_CUDA_VERSION so cudarc targets the driver rather than the toolkit.
+    // This prevents a runtime panic when the installed CUDA toolkit is newer
+    // than the driver (e.g. toolkit 13.2 on a CUDA 13.1 driver).
+    const driverCuda = await detectCudaDriverVersion()
+    if (driverCuda) {
+      const cudarcVersion = toCudarcVersion(driverCuda)
+      process.env.CUDARC_CUDA_VERSION = cudarcVersion
+      console.log(
+        `Detected CUDA driver version: ${driverCuda} → CUDARC_CUDA_VERSION=${cudarcVersion}`,
+      )
+    } else {
+      console.warn(
+        'Warning: nvidia-smi not found; CUDARC_CUDA_VERSION not set. ' +
+          'cudarc will use the toolkit version which may not match your driver.',
+      )
+    }
   }
 
   const args = process.argv.slice(2)

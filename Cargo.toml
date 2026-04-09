@@ -89,6 +89,10 @@ libloading = "0.8.9"
 num_cpus = "1.17"
 rustfft = "6.4"
 cudarc = { version = "0.19.4", features = [
+    # Use the driver-reported CUDA version when building via `scripts/dev.ts`
+    # (it sets CUDARC_CUDA_VERSION=<driver version> via nvidia-smi before cargo
+    # runs, which takes priority over build-system detection here).
+    # Direct `cargo build` without that env var will fall back to nvcc detection.
     "cuda-version-from-build-system",
     "cufft",
     "std",
