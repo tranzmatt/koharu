@@ -1,0 +1,12 @@
+name: koharu-build
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - rust
+  - bun
+  - pkg-config
+  - cmake
+  - ninja
+  - git
+  - curl
