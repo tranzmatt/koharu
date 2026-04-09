@@ -1,4 +1,5 @@
 mod jinja;
+pub mod glm_ocr;
 pub mod language;
 mod model;
 pub mod paddleocr_vl;

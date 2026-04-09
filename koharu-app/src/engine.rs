@@ -824,6 +824,66 @@ inventory::submit! {
     }
 }
 
+// --- GLM-OCR -----------------------------------------------------------------
+
+struct GlmOcrEngine(std::sync::Mutex<koharu_llm::glm_ocr::GlmOcr>);
+
+#[async_trait]
+impl Engine for GlmOcrEngine {
+    async fn run(
+        &self,
+        doc: &Document,
+        res: &AppResources,
+        _options: &PipelineRunOptions,
+    ) -> Result<Patch> {
+        if doc.text_blocks.is_empty() {
+            return Ok(Patch::none());
+        }
+        let (source, regions) = {
+            let _s = tracing::info_span!("load_image").entered();
+            let source: SerializableDynamicImage = res.storage.images.load(&doc.source)?.into();
+            let regions: Vec<_> = doc
+                .text_blocks
+                .iter()
+                .map(|b| koharu_ml::comic_text_detector::crop_text_block_bbox(&source, b))
+                .collect();
+            (source, regions)
+        };
+        let outputs = {
+            let _s = tracing::info_span!("inference", blocks = regions.len()).entered();
+            let mut ocr = self
+                .0
+                .lock()
+                .map_err(|_| anyhow::anyhow!("GLM-OCR mutex poisoned"))?;
+            ocr.inference_images(
+                &regions,
+                koharu_llm::glm_ocr::GlmOcrTask::Text,
+                256,
+            )?
+        };
+        let mut blocks = doc.text_blocks.clone();
+        for (block, out) in blocks.iter_mut().zip(outputs) {
+            block.text = Some(out.text);
+        }
+        let _ = source;
+        Ok(Patch::apply(|doc| doc.text_blocks = blocks))
+    }
+}
+
+inventory::submit! {
+    EngineInfo {
+        id: "glm-ocr",
+        name: "GLM-OCR",
+        needs: &[Artifact::TextBlocks],
+        produces: &[Artifact::OcrText],
+        load: |res| Box::pin(async move {
+            let backend = res.llm.backend();
+            let m = koharu_llm::glm_ocr::GlmOcr::load(&res.runtime, matches!(res.device, koharu_ml::Device::Cpu), backend).await?;
+            Ok(Box::new(GlmOcrEngine(std::sync::Mutex::new(m))) as Box<dyn Engine>)
+        }),
+    }
+}
+
 // --- Manga OCR ---------------------------------------------------------------
 
 struct MangaOcrEngine(koharu_ml::manga_ocr::MangaOcr);
