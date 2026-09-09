@@ -3,7 +3,7 @@
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG KOHARU_VERSION=0.61.2
+ARG KOHARU_VERSION=0.81.10
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
