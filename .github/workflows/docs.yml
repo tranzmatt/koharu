@@ -1,9 +1,8 @@
 name: Documentation
 on:
   push:
-    branches:
-      - master
-      - main
+    branches: ['main']
+
 permissions:
   contents: read
   pages: write
@@ -15,18 +14,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/configure-pages@v5
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.x
-      - run: pip install zensical
-      - run: zensical build -f docs/zensical.toml --clean
-      - run: zensical build -f docs/zensical.ja-JP.toml
-      - run: zensical build -f docs/zensical.zh-CN.toml
-      - run: zensical build -f docs/zensical.pt-BR.toml
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - uses: actions/configure-pages@v6
+      - run: uvx --from zensical==0.0.43 zensical build
+        working-directory: docs
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/site
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v5
         id: deployment
