@@ -1,11 +1,18 @@
-# syntax=docker/dockerfile:1.7
-
+# To get latest version:
+# docker build -t koharu --build-arg CACHEBUST=$(date +%s) .
+#
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG KOHARU_VERSION=0.81.10
+# "latest" resolves the newest non-prerelease GitHub release at build time.
+# Pin to a tag (e.g. 0.81.10) for a reproducible build.
+ARG KOHARU_VERSION=latest
+# Change this value (e.g. `--build-arg CACHEBUST=$(date +%s)`) to invalidate the
+# cache below and re-resolve KOHARU_VERSION against GitHub on the next build.
+ARG CACHEBUST=0
 
-RUN apt-get update \
+RUN echo "CACHEBUST=${CACHEBUST}" \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -18,7 +25,12 @@ RUN apt-get update \
     libssl3 \
     libwebkit2gtk-4.1-0 \
     libxdo3 \
-    && release_url="$(curl -fsSL "https://api.github.com/repos/mayocream/koharu/releases/tags/${KOHARU_VERSION}" \
+    && if [ "${KOHARU_VERSION}" = "latest" ]; then \
+        api_url="https://api.github.com/repos/mayocream/koharu/releases/latest"; \
+    else \
+        api_url="https://api.github.com/repos/mayocream/koharu/releases/tags/${KOHARU_VERSION}"; \
+    fi \
+    && release_url="$(curl -fsSL "$api_url" \
         | sed -n 's/.*"browser_download_url": "\(.*_amd64\.deb\)".*/\1/p' \
         | head -n 1)" \
     && test -n "$release_url" \
